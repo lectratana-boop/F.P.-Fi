@@ -54,3 +54,16 @@ data class BudgetTransaction(
     val authorName: String,
     val authorPhone: String
 )
+
+@Entity(
+    tableName = "cached_bible_verses",
+    primaryKeys = ["versionIsProtestant", "bookId", "chapter", "verseNumber"]
+)
+data class CachedBibleVerse(
+    val versionIsProtestant: Boolean,
+    val bookId: Int,
+    val bookName: String,
+    val chapter: Int,
+    val verseNumber: Int,
+    val text: String
+)

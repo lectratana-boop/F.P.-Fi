@@ -198,4 +198,29 @@ class AppRepository(private val appDao: AppDao) {
     suspend fun deleteTransaction(transaction: BudgetTransaction) {
         appDao.deleteTransaction(transaction)
     }
+
+    // --- Cached Bible Verses Operations ---
+    suspend fun getCachedBibleVerses(isProtestant: Boolean, bookId: Int, chapter: Int): List<CachedBibleVerse> {
+        return appDao.getCachedBibleVerses(isProtestant, bookId, chapter)
+    }
+
+    fun getCachedBibleVersesFlow(isProtestant: Boolean, bookId: Int, chapter: Int): Flow<List<CachedBibleVerse>> {
+        return appDao.getCachedBibleVersesFlow(isProtestant, bookId, chapter)
+    }
+
+    suspend fun insertCachedBibleVerses(verses: List<CachedBibleVerse>) {
+        appDao.insertCachedBibleVerses(verses)
+    }
+
+    suspend fun deleteCachedChapter(isProtestant: Boolean, bookId: Int, chapter: Int) {
+        appDao.deleteCachedChapter(isProtestant, bookId, chapter)
+    }
+
+    suspend fun getCachedVersesCount(isProtestant: Boolean, bookId: Int, chapter: Int): Int {
+        return appDao.getCachedVersesCount(isProtestant, bookId, chapter)
+    }
+
+    fun getCachedChapterKeysFlow(isProtestant: Boolean): Flow<List<String>> {
+        return appDao.getCachedChapterKeysFlow(isProtestant)
+    }
 }

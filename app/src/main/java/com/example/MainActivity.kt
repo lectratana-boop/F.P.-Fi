@@ -1135,6 +1135,17 @@ fun BaibolyTabView(viewModel: AppViewModel) {
     var scriptureResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     var isShowingVersesSheet by remember { mutableStateOf(false) }
 
+    val cachedProtestantChapters by viewModel.cachedProtestantChapters.collectAsStateWithLifecycle()
+    val cachedCatholicChapters by viewModel.cachedCatholicChapters.collectAsStateWithLifecycle()
+
+    val cachedSet = remember(cachedProtestantChapters, cachedCatholicChapters, viewModel.bibleVersionIsProtestant) {
+        if (viewModel.bibleVersionIsProtestant) cachedProtestantChapters.toSet() else cachedCatholicChapters.toSet()
+    }
+
+    LaunchedEffect(viewModel.selectedBookId, viewModel.selectedChapter, viewModel.bibleVersionIsProtestant) {
+        viewModel.loadCurrentChapterVerses()
+    }
+
     val filteredBooks = remember(viewModel.bibleBookSearchQuery, viewModel.bibleTestamentIsNew) {
         BibleData.books.filter { book ->
             book.isNewTestament == viewModel.bibleTestamentIsNew &&
@@ -1146,9 +1157,7 @@ fun BaibolyTabView(viewModel: AppViewModel) {
         BibleData.books.find { it.id == viewModel.selectedBookId } ?: BibleData.books.first()
     }
 
-    val currentChapterVerses = remember(viewModel.selectedBookId, viewModel.selectedChapter) {
-        BibleData.generateVerses(viewModel.selectedBookId, viewModel.selectedChapter)
-    }
+    val currentChapterVerses = viewModel.currentChapterVerses
 
     Column(
         modifier = Modifier
@@ -1400,6 +1409,113 @@ fun BaibolyTabView(viewModel: AppViewModel) {
             }
         }
 
+        // OFF-LINE DOWNLOAD & CACHE OPTION CARD
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)), // Very Soft Green
+            border = BorderStroke(1.dp, Color(0xFFDCFCE7)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Cloud,
+                            contentDescription = "Offline Cache",
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Fitehirizana Offline (Baiboly)",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF166534)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFDCFCE7)
+                    ) {
+                        Text(
+                            text = "OFFLINE OK",
+                            color = Color(0xFF15803D),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Miasa tsy misy internet ity Baiboly ity. Azonao hiraina na tehirizina mialoha handalinana azy na aiza na aiza.",
+                    fontSize = 12.sp,
+                    color = Color(0xFF1E4620),
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Button to cache entire selected book
+                    OutlinedButton(
+                        onClick = { viewModel.cacheEntireBook(selectedBook.id) },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF15803D)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFF86EFAC)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Tehirizo ny Boky",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Button to toggle/save current active chapter
+                    Button(
+                        onClick = { viewModel.toggleCurrentChapterCache() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (viewModel.isCurrentChapterCached) Color(0xFF15803D) else Color(0xFF2563EB),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = if (viewModel.isCurrentChapterCached) Icons.Default.Check else Icons.Default.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (viewModel.isCurrentChapterCached) "Voatahiry Toko" else "Tehirizo Toko",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
         // CHAPTER SELECTOR GRID: "TOKO AO AMIN'NY SALAMO (150):"
         Spacer(modifier = Modifier.height(16.dp))
         Text(
@@ -1416,17 +1532,28 @@ fun BaibolyTabView(viewModel: AppViewModel) {
             maxItemsInEachRow = 8
         ) {
             (1..selectedBook.chaptersCount).forEach { chap ->
+                val isCached = cachedSet.contains("${selectedBook.id}-$chap")
                 val active = viewModel.selectedChapter == chap
                 Box(
                     modifier = Modifier
                         .padding(4.dp)
                         .size(38.dp)
                         .clip(CircleShape)
-                        .background(if (active) NavyMain else Color.White)
+                        .background(
+                            when {
+                                active -> Color(0xFF2563EB)
+                                isCached -> Color(0xFFECFDF5)
+                                else -> Color.White
+                            }
+                        )
                         .border(
                             BorderStroke(
-                                1.dp,
-                                if (active) NavyMain else Color.LightGray
+                                if (active || isCached) 1.5.dp else 1.dp,
+                                when {
+                                    active -> Color(0xFF2563EB)
+                                    isCached -> Color(0xFF10B981)
+                                    else -> Color.LightGray
+                                }
                             ), CircleShape
                         )
                         .clickable {
@@ -1437,7 +1564,11 @@ fun BaibolyTabView(viewModel: AppViewModel) {
                 ) {
                     Text(
                         text = "$chap",
-                        color = if (active) Color.White else Color.Black,
+                        color = when {
+                            active -> Color.White
+                            isCached -> Color(0xFF065F46)
+                            else -> Color.Black
+                        },
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )

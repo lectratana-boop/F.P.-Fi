@@ -54,4 +54,23 @@ interface AppDao {
 
     @Delete
     suspend fun deleteTransaction(transaction: BudgetTransaction)
+
+    // --- Cached Bible Verses Operations ---
+    @Query("SELECT * FROM cached_bible_verses WHERE versionIsProtestant = :isProtestant AND bookId = :bookId AND chapter = :chapter ORDER BY verseNumber ASC")
+    suspend fun getCachedBibleVerses(isProtestant: Boolean, bookId: Int, chapter: Int): List<CachedBibleVerse>
+
+    @Query("SELECT * FROM cached_bible_verses WHERE versionIsProtestant = :isProtestant AND bookId = :bookId AND chapter = :chapter ORDER BY verseNumber ASC")
+    fun getCachedBibleVersesFlow(isProtestant: Boolean, bookId: Int, chapter: Int): Flow<List<CachedBibleVerse>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCachedBibleVerses(verses: List<CachedBibleVerse>)
+
+    @Query("DELETE FROM cached_bible_verses WHERE versionIsProtestant = :isProtestant AND bookId = :bookId AND chapter = :chapter")
+    suspend fun deleteCachedChapter(isProtestant: Boolean, bookId: Int, chapter: Int)
+
+    @Query("SELECT COUNT(*) FROM cached_bible_verses WHERE versionIsProtestant = :isProtestant AND bookId = :bookId AND chapter = :chapter")
+    suspend fun getCachedVersesCount(isProtestant: Boolean, bookId: Int, chapter: Int): Int
+
+    @Query("SELECT DISTINCT (bookId || '-' || chapter) FROM cached_bible_verses WHERE versionIsProtestant = :isProtestant")
+    fun getCachedChapterKeysFlow(isProtestant: Boolean): Flow<List<String>>
 }

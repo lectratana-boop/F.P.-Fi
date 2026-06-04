@@ -14,6 +14,7 @@ import com.example.data.model.Comment
 import com.example.data.model.DailyVerse
 import com.example.data.model.DiscussionPost
 import com.example.data.model.Member
+import com.example.data.model.CachedBibleVerse
 import com.example.data.repository.AppRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -52,6 +53,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val dailyVerse: StateFlow<DailyVerse?>
     val postsFlow: StateFlow<List<DiscussionPost>>
     val transactions: StateFlow<List<BudgetTransaction>>
+    val cachedProtestantChapters: StateFlow<List<String>>
+    val cachedCatholicChapters: StateFlow<List<String>>
 
     private val _currentUser = MutableStateFlow<Member?>(null)
     val currentUser = _currentUser.asStateFlow()
@@ -80,6 +83,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     var selectedBookId by mutableStateOf(1) // Genesisy
     var selectedChapter by mutableStateOf(1)
+
+    var currentChapterVerses by mutableStateOf<List<Pair<Int, String>>>(emptyList())
+    var isCurrentChapterCached by mutableStateOf(false)
 
     // --- Sampana States ---
     var editProjectsText by mutableStateOf("")
@@ -136,6 +142,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         transactions = repository.transactionsFlow.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        cachedProtestantChapters = repository.getCachedChapterKeysFlow(true).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        cachedCatholicChapters = repository.getCachedChapterKeysFlow(false).stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
@@ -251,6 +269,82 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun editDailyVerse(text: String, reference: String) {
         viewModelScope.launch {
             repository.updateDailyVerse(text, reference)
+        }
+    }
+
+    // --- Cached Bible Cache Actions ---
+    fun loadCurrentChapterVerses() {
+        viewModelScope.launch {
+            val localList = repository.getCachedBibleVerses(bibleVersionIsProtestant, selectedBookId, selectedChapter)
+            if (localList.isNotEmpty()) {
+                currentChapterVerses = localList.map { it.verseNumber to it.text }
+                isCurrentChapterCached = true
+            } else {
+                // If not cached yet, generate from BibleData fallback
+                val generated = BibleData.generateVerses(selectedBookId, selectedChapter)
+                currentChapterVerses = generated
+                isCurrentChapterCached = false
+            }
+        }
+    }
+
+    fun cacheCurrentChapter() {
+        viewModelScope.launch {
+            val generated = BibleData.generateVerses(selectedBookId, selectedChapter)
+            val bookName = BibleData.books.find { it.id == selectedBookId }?.name ?: "Boky"
+            val versesToCache = generated.map { (vNo, text) ->
+                CachedBibleVerse(
+                    versionIsProtestant = bibleVersionIsProtestant,
+                    bookId = selectedBookId,
+                    bookName = bookName,
+                    chapter = selectedChapter,
+                    verseNumber = vNo,
+                    text = text
+                )
+            }
+            repository.insertCachedBibleVerses(versesToCache)
+            isCurrentChapterCached = true
+            loadCurrentChapterVerses()
+        }
+    }
+
+    fun deleteCurrentChapterCache() {
+        viewModelScope.launch {
+            repository.deleteCachedChapter(bibleVersionIsProtestant, selectedBookId, selectedChapter)
+            isCurrentChapterCached = false
+            loadCurrentChapterVerses()
+        }
+    }
+
+    fun toggleCurrentChapterCache() {
+        if (isCurrentChapterCached) {
+            deleteCurrentChapterCache()
+        } else {
+            cacheCurrentChapter()
+        }
+    }
+
+    fun cacheEntireBook(bookId: Int) {
+        viewModelScope.launch {
+            val book = BibleData.books.find { it.id == bookId } ?: return@launch
+            val versesToCache = mutableListOf<CachedBibleVerse>()
+            for (chap in 1..book.chaptersCount) {
+                val generated = BibleData.generateVerses(bookId, chap)
+                generated.forEach { (vNo, text) ->
+                    versesToCache.add(
+                        CachedBibleVerse(
+                            versionIsProtestant = bibleVersionIsProtestant,
+                            bookId = bookId,
+                            bookName = book.name,
+                            chapter = chap,
+                            verseNumber = vNo,
+                            text = text
+                        )
+                    )
+                }
+            }
+            repository.insertCachedBibleVerses(versesToCache)
+            loadCurrentChapterVerses()
         }
     }
 

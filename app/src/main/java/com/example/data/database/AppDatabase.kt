@@ -9,15 +9,17 @@ import com.example.data.model.Member
 import com.example.data.model.DailyVerse
 import com.example.data.model.DiscussionPost
 import com.example.data.model.BudgetTransaction
+import com.example.data.model.CachedBibleVerse
 
 @Database(
     entities = [
         Member::class,
         DailyVerse::class,
         DiscussionPost::class,
-        BudgetTransaction::class
+        BudgetTransaction::class,
+        CachedBibleVerse::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
