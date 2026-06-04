@@ -1,0 +1,6 @@
+{
+  "name": "F.P.Fi",
+  "description": "Fampiharana F.P.Fi (Fiangonana Protestanta Fifohazana) - Baiboly Masina, Sampana, sy Kilalao",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
